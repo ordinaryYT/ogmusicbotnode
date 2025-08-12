@@ -32,10 +32,10 @@ const client = new Client({
 // ⚠ Public nodes are for testing. For production, run your own Lavalink.
 const nodes = [
   {
-    identifier: "PublicLavaLink",
-    host: "lava.link",
-    port: 80,
-    password: "youshallnotpass",
+    identifier: "JM Lite LAVALINK",
+    host: "46.202.82.164",
+    port: 1027,
+    password: "jmlitelavalink",
     secure: false,
   },
 ];
