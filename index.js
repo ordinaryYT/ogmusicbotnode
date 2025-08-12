@@ -54,7 +54,7 @@ client.on("messageCreate", async (message) => {
 
   if (cmd === "play") {
     if (!message.member.voice.channel) {
-      return message.reply("❌ You must be in a voice channel!");
+      return message.reply("You must be in a voice channel!");
     }
 
     const player = client.manager.create({
@@ -71,7 +71,7 @@ client.on("messageCreate", async (message) => {
       res = await player.search(search, message.author);
       if (res.loadType === "NO_MATCHES") return message.reply("❌ No results found.");
     } catch (err) {
-      return message.reply(`❌ Error: ${err.message}`);
+      return message.reply(`Error: ${err.message}`);
     }
 
     player.queue.add(res.tracks[0]);
@@ -81,7 +81,7 @@ client.on("messageCreate", async (message) => {
 
   if (cmd === "skip") {
     const player = client.manager.players.get(message.guild.id);
-    if (!player) return message.reply("❌ Nothing playing.");
+    if (!player) return message.reply("Nothing playing.");
     player.stop();
     message.reply("⏭ Skipped!");
   }
@@ -90,7 +90,7 @@ client.on("messageCreate", async (message) => {
     const player = client.manager.players.get(message.guild.id);
     if (!player) return message.reply("❌ Nothing playing.");
     player.destroy();
-    message.reply("🛑 Stopped and left the channel!");
+    message.reply("Stopped and left the channel!");
   }
 });
 
