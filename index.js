@@ -1,6 +1,20 @@
-// Install dependencies first:
-// npm install discord.js erela.js @discordjs/voice
+// =======================
+// Simple HTTP server (Render requirement)
+// =======================
+const express = require("express");
+const app = express();
 
+const PORT = process.env.PORT || 3000;
+app.get("/", (req, res) => {
+  res.send("✅ Discord Lavalink Music Bot is running!");
+});
+app.listen(PORT, () => {
+  console.log(`🌐 Web server running on port ${PORT}`);
+});
+
+// =======================
+// Discord.js + Erela.js Lavalink Music Bot
+// =======================
 const { Client, GatewayIntentBits } = require("discord.js");
 const { Manager } = require("erela.js");
 
@@ -42,7 +56,7 @@ client.once("ready", () => {
 // Required for erela.js voice updates
 client.on("raw", (d) => client.manager.updateVoiceState(d));
 
-// Simple play command
+// Simple play/skip/stop commands
 client.on("messageCreate", async (message) => {
   if (!message.guild || message.author.bot) return;
 
@@ -54,7 +68,7 @@ client.on("messageCreate", async (message) => {
 
   if (cmd === "play") {
     if (!message.member.voice.channel) {
-      return message.reply("You must be in a voice channel!");
+      return message.reply("❌ You must be in a voice channel!");
     }
 
     const player = client.manager.create({
@@ -71,7 +85,7 @@ client.on("messageCreate", async (message) => {
       res = await player.search(search, message.author);
       if (res.loadType === "NO_MATCHES") return message.reply("❌ No results found.");
     } catch (err) {
-      return message.reply(`Error: ${err.message}`);
+      return message.reply(`❌ Error: ${err.message}`);
     }
 
     player.queue.add(res.tracks[0]);
@@ -81,7 +95,7 @@ client.on("messageCreate", async (message) => {
 
   if (cmd === "skip") {
     const player = client.manager.players.get(message.guild.id);
-    if (!player) return message.reply("Nothing playing.");
+    if (!player) return message.reply("❌ Nothing playing.");
     player.stop();
     message.reply("⏭ Skipped!");
   }
@@ -90,8 +104,9 @@ client.on("messageCreate", async (message) => {
     const player = client.manager.players.get(message.guild.id);
     if (!player) return message.reply("❌ Nothing playing.");
     player.destroy();
-    message.reply("Stopped and left the channel!");
+    message.reply("🛑 Stopped and left the channel!");
   }
 });
 
-client.login("YOUR_DISCORD_BOT_TOKEN");
+// Login bot (use Render's Environment Variables for the token)
+client.login(process.env.BOT_TOKEN);
