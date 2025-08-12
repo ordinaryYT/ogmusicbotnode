@@ -9,7 +9,7 @@
   },
   "dependencies": {
     "discord.js": "^14.15.3",
-    "erela.js": "^2.5.5",
+    "erela.js": "^2.4.0",
     "@discordjs/voice": "^0.16.0",
     "express": "^4.19.2"
   },
