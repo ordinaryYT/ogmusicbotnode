@@ -1,24 +1,16 @@
-// index.js
-// =======================
-// Simple HTTP server (for Render or Replit keep-alive)
-// =======================
+// index.js — working setup with public node
+
 const express = require("express");
-const app = express();
-
-const PORT = process.env.PORT || 3000;
-app.get("/", (req, res) => {
-  res.send("✅ Discord Lavalink Music Bot is running!");
-});
-app.listen(PORT, () => {
-  console.log(`🌐 Web server running on port ${PORT}`);
-});
-
-// =======================
-// Discord.js + Erela.js Lavalink Music Bot
-// =======================
 const { Client, GatewayIntentBits } = require("discord.js");
 const { Manager } = require("erela.js");
 
+// HTTP keep-alive server for platforms like Render
+const app = express();
+const PORT = process.env.PORT || 3000;
+app.get("/", (req, res) => res.send("Bot is alive and running!"));
+app.listen(PORT, () => console.log(`Web server listening on port ${PORT}`));
+
+// Discord client
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
@@ -28,19 +20,17 @@ const client = new Client({
   ],
 });
 
-// ======= Public Lavalink node config =======
-// ⚠ Public nodes are for testing. For production, run your own Lavalink.
+//  Working public Lavalink node from Reddit post
 const nodes = [
   {
-    identifier: "JM Lite LAVALINK",
-    host: "46.202.82.164",
-    port: 1027,
-    password: "jmlitelavalink",
+    identifier: "PublicMiciumNode",
+    host: "lavalink.micium-hosting.com",
+    port: 80,
+    password: "micium-hosting.com",
     secure: false,
   },
 ];
 
-// Create Erela.js Manager
 client.manager = new Manager({
   nodes,
   send: (id, payload) => {
@@ -49,55 +39,53 @@ client.manager = new Manager({
   },
 });
 
-// Lavalink events
+// Lavalink events logging
 client.manager
   .on("nodeConnect", (node) =>
-    console.log(`🔌 Lavalink node connected: ${node.options.identifier}`)
+    console.log(`✅ Connected to node: ${node.options.identifier}`)
   )
-  .on("nodeError", (node, err) =>
-    console.error(`❗ Lavalink node error (${node.options.identifier}):`, err)
+  .on("nodeError", (node, error) =>
+    console.error(`❗ Node error (${node.options.identifier}):`, error)
   )
   .on("trackStart", (player, track) => {
-    const channel = client.channels.cache.get(player.textChannel);
-    if (channel) channel.send(`🎶 Now playing: **${track.title}**`);
+    const text = client.channels.cache.get(player.textChannel);
+    if (text) text.send(`🎶 Now playing: **${track.title}**`);
   })
   .on("queueEnd", (player) => {
-    const channel = client.channels.cache.get(player.textChannel);
-    if (channel) channel.send("✅ Queue has ended.");
+    const text = client.channels.cache.get(player.textChannel);
+    if (text) text.send("✅ Queue ended.");
     player.destroy();
   });
 
-// Ready event
 client.once("ready", () => {
-  console.log(`✅ Logged in as ${client.user.tag}`);
+  console.log(`Logged in as ${client.user.tag}`);
   client.manager.init(client.user.id);
 });
 
-// Raw voice state event forwarding
+// Important for voice updates
 client.on("raw", (d) => client.manager.updateVoiceState(d));
 
-// ====== Message commands ======
+// Commands: play, skip, stop
 client.on("messageCreate", async (message) => {
   if (!message.guild || message.author.bot) return;
-
   const args = message.content.trim().split(/ +/g);
   const cmd = args.shift().toLowerCase();
 
   if (cmd === "!play") {
     const { channel } = message.member.voice;
-    if (!channel) return message.reply("❌ You must be in a voice channel!");
+    if (!channel) return message.reply("You need to be in a voice channel!");
 
     const query = args.join(" ");
-    if (!query) return message.reply("❌ Please provide a search term or URL!");
+    if (!query) return message.reply("Provide a search term or URL!");
 
     let res;
     try {
-      const searchQuery = query.startsWith("http") ? query : `ytsearch:${query}`;
-      res = await client.manager.search(searchQuery, message.author);
-      if (!res.tracks.length) return message.reply("❌ No results found.");
+      const search = query.startsWith("http") ? query : `ytsearch:${query}`;
+      res = await client.manager.search(search, message.author);
+      if (!res.tracks.length) return message.reply("No results found.");
     } catch (err) {
       console.error(err);
-      return message.reply("❌ Error while searching for the track.");
+      return message.reply("Search error occurred.");
     }
 
     let player = client.manager.players.get(message.guild.id);
@@ -113,25 +101,19 @@ client.on("messageCreate", async (message) => {
     if (player.state !== "CONNECTED") player.connect();
 
     player.queue.add(res.tracks[0]);
-    message.reply(`✅ Queued: **${res.tracks[0].title}**`);
-
+    message.reply(`Queued: **${res.tracks[0].title}**`);
     if (!player.playing && !player.paused) player.play();
   }
 
   if (cmd === "!skip" || cmd === "!next") {
     const player = client.manager.players.get(message.guild.id);
-    if (!player) return message.reply("❌ Nothing is playing.");
-    player.stop();
-    message.reply("⏭ Skipped!");
+    return player ? (player.stop(), message.reply("Skipped!")) : message.reply("Nothing playing.");
   }
 
   if (cmd === "!stop") {
     const player = client.manager.players.get(message.guild.id);
-    if (!player) return message.reply("❌ Nothing is playing.");
-    player.destroy();
-    message.reply("🛑 Stopped and left the channel!");
+    return player ? (player.destroy(), message.reply("Stopped!")) : message.reply("Nothing playing.");
   }
 });
 
-// Login — set BOT_TOKEN in your environment
 client.login(process.env.BOT_TOKEN);
