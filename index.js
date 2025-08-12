@@ -1,112 +1,106 @@
-// =======================
-// Simple HTTP server (Render requirement)
-// =======================
-const express = require("express");
-const app = express();
-
-const PORT = process.env.PORT || 3000;
-app.get("/", (req, res) => {
-  res.send("✅ Discord Lavalink Music Bot is running!");
-});
-app.listen(PORT, () => {
-  console.log(`🌐 Web server running on port ${PORT}`);
-});
-
-// =======================
-// Discord.js + Erela.js Lavalink Music Bot
-// =======================
 const { Client, GatewayIntentBits } = require("discord.js");
 const { Manager } = require("erela.js");
+const express = require("express");
 
+// Keep-alive web server
+const app = express();
+app.get("/", (req, res) => res.send("Bot is running"));
+app.listen(3000, () => console.log("Web server running"));
+
+// Discord client setup
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
-    GatewayIntentBits.GuildVoiceStates,
     GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.MessageContent
-  ]
+    GatewayIntentBits.GuildVoiceStates,
+    GatewayIntentBits.MessageContent,
+  ],
 });
 
-// Lavalink connection config
+// Lavalink nodes (your provided config)
 const nodes = [
   {
     identifier: "Felix Node2",
     host: "node2.axmilin.in.th",
     port: 60285,
     password: "github.com/AxMilin",
-    secure: false
-  }
+    secure: false,
+  },
 ];
 
-// Create manager for Lavalink
+// Erela.js Manager setup
 client.manager = new Manager({
   nodes,
   send: (id, payload) => {
     const guild = client.guilds.cache.get(id);
     if (guild) guild.shard.send(payload);
-  }
-});
+  },
+})
+  .on("nodeConnect", (node) => console.log(`Lavalink connected: ${node.options.identifier}`))
+  .on("nodeError", (node, error) => console.error(`Node error: ${error.message}`))
+  .on("trackStart", (player, track) => {
+    const channel = client.channels.cache.get(player.textChannel);
+    if (channel) channel.send(`🎶 Now playing: **${track.title}**`);
+  })
+  .on("queueEnd", (player) => {
+    const channel = client.channels.cache.get(player.textChannel);
+    if (channel) channel.send("✅ Queue has ended.");
+    player.destroy();
+  });
 
-// Discord ready
+// Client ready event
 client.once("ready", () => {
   console.log(`✅ Logged in as ${client.user.tag}`);
   client.manager.init(client.user.id);
 });
 
-// Required for erela.js voice updates
+// Raw event for Erela.js
 client.on("raw", (d) => client.manager.updateVoiceState(d));
 
-// Simple play/skip/stop commands
+// Message commands
 client.on("messageCreate", async (message) => {
   if (!message.guild || message.author.bot) return;
 
-  const prefix = "!";
-  if (!message.content.startsWith(prefix)) return;
-
-  const args = message.content.slice(prefix.length).trim().split(/ +/g);
+  const args = message.content.trim().split(/ +/g);
   const cmd = args.shift().toLowerCase();
 
-  if (cmd === "play") {
-    if (!message.member.voice.channel) {
-      return message.reply("❌ You must be in a voice channel!");
+  if (cmd === "!play") {
+    const { channel } = message.member.voice;
+    if (!channel) return message.reply("❌ You must be in a voice channel!");
+
+    const query = args.join(" ");
+    if (!query) return message.reply("❌ Please provide a search term or URL!");
+
+    let res;
+    try {
+      // Auto-convert plain text to YouTube search
+      const searchQuery = query.startsWith("http") ? query : `ytsearch:${query}`;
+      res = await client.manager.search(searchQuery, message.author);
+
+      if (!res.tracks.length)
+        return message.reply("❌ No results found.");
+    } catch (err) {
+      console.error(err);
+      return message.reply("❌ Error while searching.");
     }
 
-    const player = client.manager.create({
-      guild: message.guild.id,
-      voiceChannel: message.member.voice.channel.id,
-      textChannel: message.channel.id
-    });
+    let player = client.manager.players.get(message.guild.id);
+    if (!player) {
+      player = client.manager.create({
+        guild: message.guild.id,
+        voiceChannel: channel.id,
+        textChannel: message.channel.id,
+        selfDeafen: true,
+      });
+    }
 
     if (player.state !== "CONNECTED") player.connect();
 
-    const search = args.join(" ");
-    let res;
-    try {
-      res = await player.search(search, message.author);
-      if (res.loadType === "NO_MATCHES") return message.reply("❌ No results found.");
-    } catch (err) {
-      return message.reply(`❌ Error: ${err.message}`);
-    }
-
     player.queue.add(res.tracks[0]);
-    message.reply(`🎶 Queued: **${res.tracks[0].title}**`);
-    if (!player.playing && !player.paused && player.queue.totalSize === 1) player.play();
-  }
+    message.reply(`✅ Queued: **${res.tracks[0].title}**`);
 
-  if (cmd === "skip") {
-    const player = client.manager.players.get(message.guild.id);
-    if (!player) return message.reply("❌ Nothing playing.");
-    player.stop();
-    message.reply("⏭ Skipped!");
-  }
-
-  if (cmd === "stop") {
-    const player = client.manager.players.get(message.guild.id);
-    if (!player) return message.reply("❌ Nothing playing.");
-    player.destroy();
-    message.reply("🛑 Stopped and left the channel!");
+    if (!player.playing && !player.paused && !player.queue.size) player.play();
   }
 });
 
-// Login bot (use Render's Environment Variables for the token)
-client.login(process.env.BOT_TOKEN);
+client.login(process.env.TOKEN);
